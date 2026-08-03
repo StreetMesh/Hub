@@ -7,13 +7,26 @@
 
 **The authoritative half of a venue: rooms, and who is allowed in them.**
 
-A game of chess needs somewhere the board actually lives — somewhere that
-decides whose turn it is and refuses a move that is not legal, no matter what a
-browser claims. That is this. It is the only part of StreetMesh that is
-authoritative over what is happening *right now*.
+Anything people do together needs one place that decides what is true *right
+now* — whose turn it is, where the video is paused, what the current bid stands
+at. Not a place that collects opinions from the participants and takes the
+majority view: a place that decides, and refuses a browser saying otherwise,
+whether that browser is confused or lying.
 
-It is not authoritative over what happened. That belongs to the venue, which
-signs the record, and to the person whose records it goes into.
+That is this. It is the only part of StreetMesh authoritative over the present
+moment, and it is not authoritative over anything else — what *happened* belongs
+to the venue, which signs the record, and to the person whose records it goes
+into.
+
+**Hub itself knows no rules.** It provides a room and a door. What makes a room
+a game of chess rather than a watch party is an experience, and experiences are
+somebody else's package.
+
+> Chess is the example used throughout this README, because it is the smallest
+> thing that needs the whole of it: two people, strict turns, a rule about what
+> is legal, and an outcome worth keeping afterwards. Where it is a poor guide,
+> the text says so — a watch party needs less than chess and an auction needs
+> more, and neither is built in here either.
 
 ## What it knows, and what it deliberately does not
 
@@ -28,8 +41,8 @@ and that is the whole of its security model.
 So it holds **no credential**. No shared secret, no private key, nothing to
 steal and nothing it could use to assert anything back to the venue. If this
 process were entirely compromised, what an attacker would gain is the ability to
-lie about a game in progress — not to forge a record, not to reach anybody's
-domicile, and not to impersonate the venue.
+lie about what is happening in a room — not to forge a record, not to reach
+anybody's domicile, and not to impersonate the venue.
 
 ```
 venue  ──signs a ticket──▶  browser  ──presents it──▶  hub
@@ -45,16 +58,25 @@ Trust runs one way. Hub never calls the venue, never pushes, never asserts.
 record.**
 
 A room is a fast, rebuildable view of state the venue owns. Restart Hub and
-rooms reopen from the venue; a game nobody is playing has no room at all. Which
-gives one rule an experience author has to think about:
+rooms reopen from the venue; something nobody is currently doing has no room at
+all. Which gives one rule an experience author has to think about:
 
-> Anything that must survive a restart has to be in the venue before it is
-> acknowledged to a player.
+> Anything that must survive a restart has to reach the venue before it is
+> acknowledged to a participant.
 
-Blitz chess can acknowledge a move here and persist it a beat later — a crash
-between the two loses one move, and that is survivable. Correspondence chess
-cannot. The framework asks an author to say which, rather than choosing for them
-and being wrong half the time.
+How much that costs depends entirely on what is being built, which is why it is
+declared rather than decided here:
+
+- a **watch party** can lose where the video was paused — everyone re-seeks, and
+  nothing was lost that anybody minded losing
+- an **auction** cannot lose a bid, ever, so every bid pays for a round trip
+  before the bidder is told it landed
+- **chess** sits between them, and even moves within itself: a fast game can
+  acknowledge here and persist a beat later, where a crash between the two costs
+  one move; a game played over days cannot afford that at all
+
+The framework asks an author which of those they are building, rather than
+choosing for them and being wrong most of the time.
 
 ## Checking it
 
@@ -81,14 +103,14 @@ command to remember.
 
 ## Where this fits
 
-| | |
+| Where | What it is |
 | --- | --- |
 | [**Glossary**](https://github.com/StreetMesh/Protocol/blob/main/GLOSSARY.md) | Every term here in plain words — venue, ticket, attestation, domicile — and whether each one is ours or borrowed. Start here if any of the above was unfamiliar. |
-| [`Protocol`](https://github.com/StreetMesh/Protocol) | What StreetMesh is. Guides, decisions, conformance vectors. |
-| [`Protocol-PHP`](https://github.com/StreetMesh/Protocol-PHP) | The framework-free implementation. |
-| [`Protocol-Laravel`](https://github.com/StreetMesh/Protocol-Laravel) | The same, bound to Laravel — including minting the tickets this checks. |
-| [`Server`](https://github.com/StreetMesh/Server) | Where to start if you want to run one. |
-| **`Hub`** | This. The authoritative multiplayer host. |
+| [<code>Protocol</code>](https://github.com/StreetMesh/Protocol) | What StreetMesh is. Guides, decisions, conformance vectors. |
+| [<code>Protocol&#8209;PHP</code>](https://github.com/StreetMesh/Protocol-PHP) | The framework-free implementation. |
+| [<code>Protocol&#8209;Laravel</code>](https://github.com/StreetMesh/Protocol-Laravel) | The same, bound to Laravel — including minting the tickets this checks. |
+| [<code>Server</code>](https://github.com/StreetMesh/Server) | Where to start if you want to run one. |
+| <code><b>Hub</b></code> | This. The authoritative multiplayer host. |
 
 ## License
 
