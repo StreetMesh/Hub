@@ -13,12 +13,24 @@
  * nothing behind it, which is exactly what is wanted while proving the door.
  */
 
+import { pathToFileURL } from 'node:url'
+import { resolve } from 'node:path'
 import { serve, type Experience } from './serve.ts'
 
 const port = Number(process.env.HUB_PORT ?? 2567)
 const from = process.env.HUB_EXPERIENCES
 
-const experiences: Experience[] = from ? ((await import(from)).default ?? []) : []
+/*
+ * Resolved against where the command was run, not against this file.
+ *
+ * A bare `import()` of a relative path resolves relative to the importing
+ * module, which is inside this package — so an operator passing the obvious
+ * `./hub-experiences.ts` from their own directory gets a confusing
+ * ERR_MODULE_NOT_FOUND naming a path they never typed.
+ */
+const experiences: Experience[] = from
+  ? ((await import(pathToFileURL(resolve(process.cwd(), from)).href)).default ?? [])
+  : []
 
 await serve(experiences, port)
 
