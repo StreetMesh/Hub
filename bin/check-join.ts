@@ -31,10 +31,19 @@ const check = (what: string, passed: boolean, detail = '') => {
   console.log(`  ${passed ? '✓' : '✗'} ${what.padEnd(46)} ${detail}`)
 }
 
-/** One real ticket, signed by the venue, for a room of our choosing. */
+/** One real ticket, signed by the venue, for a room of its choosing. */
 function mint(): { ticket: string; expired: string; room: string } {
   return JSON.parse(
     execFileSync('php', [resolve(here, '../../bin/mint-ticket.php')], { encoding: 'utf8' }),
+  )
+}
+
+/** And one for a room already open, so two people can share a table. */
+function mintFor(room: string): { ticket: string; room: string } {
+  return JSON.parse(
+    execFileSync('php', [resolve(here, '../../bin/mint-ticket.php'), room, 'black'], {
+      encoding: 'utf8',
+    }),
   )
 }
 
@@ -95,6 +104,44 @@ await refuse('a ticket for another room opens nothing', {
   ticket: minted.ticket,
   room: `${EXPERIENCE}/somewhere-else`,
 })
+
+/*
+ * Two people in one room, each seeing the other.
+ *
+ * This is what filtering on the venue's room name is for, and it is worth
+ * checking rather than assuming: without it Colyseus opens a fresh room per
+ * client and two players sit alone in separate games while everything appears
+ * to work.
+ */
+const second = mint()
+const secondRoom = await client.joinOrCreate(typeNameFor(EXPERIENCE), {
+  ticket: second.ticket,
+  room: second.room,
+})
+
+check('somebody else can take another room', secondRoom.roomId !== seated?.roomId, 'a different table')
+
+const third = mintFor(minted.room)
+const alongside = await client.joinOrCreate(typeNameFor(EXPERIENCE), {
+  ticket: third.ticket,
+  room: minted.room,
+})
+
+check('two tickets for one table reach one room', alongside.roomId === seated?.roomId, alongside.roomId)
+
+// Presence is state, so it arrives rather than being asked for.
+await new Promise((settle) => setTimeout(settle, 200))
+
+const present = [...alongside.state.occupants.values()].map((o: { name: string }) => o.name)
+
+check(
+  'and each of them can see who else is there',
+  present.length === 2,
+  present.join(', ') || 'nobody',
+)
+
+await alongside.leave()
+await secondRoom.leave()
 
 if (seated) {
   await seated.leave()

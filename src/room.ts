@@ -12,6 +12,7 @@
 
 import { Room, type Client } from '@colyseus/core'
 import { verifyTicket, type Ticket } from './ticket.ts'
+import { Occupancy, Occupant, type OccupancyType } from './presence.ts'
 
 export interface Seated {
   ticket: Ticket
@@ -30,7 +31,7 @@ export interface JoinOptions {
   room?: string
 }
 
-export abstract class VenueRoom<State extends object = object> extends Room<State> {
+export abstract class VenueRoom<State extends OccupancyType = OccupancyType> extends Room<State> {
   protected readonly seats = new Map<string, Ticket>()
 
   /** The venue's name for this room, which every ticket must agree with. */
@@ -42,6 +43,16 @@ export abstract class VenueRoom<State extends object = object> extends Room<Stat
     }
 
     this.venueRoom = options.room
+
+    /*
+     * An experience that wants state of its own sets it in `opened` and calls
+     * this first, or extends Occupancy. Either way presence is there before
+     * anybody can join, because the first join happens immediately after this
+     * returns.
+     */
+    if (!this.state) {
+      this.state = new Occupancy() as State
+    }
 
     this.opened(options)
   }
@@ -79,6 +90,16 @@ export abstract class VenueRoom<State extends object = object> extends Room<Stat
 
   onJoin(client: Client, options: JoinOptions, auth: Seated): void {
     this.seats.set(client.sessionId, auth.ticket)
+
+    this.state.occupants.set(
+      client.sessionId,
+      new Occupant({
+        did: auth.ticket.subject,
+        name: auth.ticket.name,
+        seat: auth.ticket.seat,
+      }),
+    )
+
     this.seated(client, auth.ticket)
   }
 
@@ -86,6 +107,7 @@ export abstract class VenueRoom<State extends object = object> extends Room<Stat
     const ticket = this.seats.get(client.sessionId)
 
     this.seats.delete(client.sessionId)
+    this.state.occupants.delete(client.sessionId)
 
     if (ticket) {
       this.left(client, ticket)
