@@ -81,11 +81,17 @@ choosing for them and being wrong most of the time.
 ## Checking it
 
 ```sh
-./check-ticket
+./check-ticket    # does a ticket PHP signed verify here?
+./check-join      # does it open a door, and does nothing else?
 ```
 
-Mints a real ticket in PHP and verifies it here, which is the seam least likely
-to be caught by either side's own tests. Between the two languages sit base58, a
+The second matters because the first can pass while the room admits everybody
+anyway — a signature check being correct and a door being shut are two different
+properties, and only one of them keeps strangers out. `check-join` stands a real
+hub up and connects real websocket clients to it.
+
+`check-ticket` mints a real ticket in PHP and verifies it here, which is the
+seam least likely to be caught by either side's own tests. Between the two languages sit base58, a
 multicodec prefix, a compressed curve point whose y coordinate has to be
 recovered by solving the curve equation, base64url without padding, and an ECDSA
 signature as a raw r‖s pair rather than the DER most libraries hand you. A test

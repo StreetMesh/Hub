@@ -1,0 +1,112 @@
+/**
+ * Check that a ticket opens a door, and that nothing else does.
+ *
+ *   ./check-join
+ *
+ * `check-ticket` verifies a signature in isolation. This stands a real hub up,
+ * connects real websocket clients to it, and checks that the door behaves — the
+ * difference being that a signature check can be perfect while the room admits
+ * everybody anyway, and only one of those two things is what actually keeps
+ * strangers out.
+ *
+ * Every ticket here is minted by the venue in PHP. Nothing is faked but the
+ * room's contents, because the room has none yet.
+ */
+
+import { Client } from 'colyseus.js'
+import { execFileSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
+import { dirname, resolve } from 'node:path'
+import { serve, typeNameFor } from '../src/serve.ts'
+import { VenueRoom } from '../src/room.ts'
+
+const here = dirname(fileURLToPath(import.meta.url))
+const PORT = 2599
+const EXPERIENCE = 'com.streetmesh.games.chess'
+
+let failures = 0
+
+const check = (what: string, passed: boolean, detail = '') => {
+  failures += passed ? 0 : 1
+  console.log(`  ${passed ? '✓' : '✗'} ${what.padEnd(46)} ${detail}`)
+}
+
+/** One real ticket, signed by the venue, for a room of our choosing. */
+function mint(): { ticket: string; expired: string; room: string } {
+  return JSON.parse(
+    execFileSync('php', [resolve(here, '../../bin/mint-ticket.php')], { encoding: 'utf8' }),
+  )
+}
+
+/** A room with no rules at all, which is all the door needs to be tested. */
+class Empty extends VenueRoom {}
+
+const hub = await serve([{ name: EXPERIENCE, room: Empty }], PORT)
+
+const client = new Client(`ws://127.0.0.1:${PORT}`)
+
+console.log()
+
+const minted = mint()
+
+/*
+ * The venue's room name travels with the join. Colyseus generates its own room
+ * id, which means nothing to anybody else — so the name the ticket was minted
+ * against has to be carried and held by the room.
+ */
+const type = typeNameFor(EXPERIENCE)
+
+const seated = await client
+  .joinOrCreate(type, { ticket: minted.ticket, room: minted.room })
+  .then(
+    (room) => room,
+    (refused) => {
+      check('a real ticket opens a room', false, String(refused?.message ?? refused))
+
+      return null
+    },
+  )
+
+if (seated) {
+  check('a real ticket opens a room', true, seated.roomId)
+  check('and the room knows who sat down', seated.sessionId !== '', seated.sessionId)
+}
+
+const refuse = async (what: string, options: Record<string, unknown>) => {
+  try {
+    const room = await client.joinOrCreate(type, { room: minted.room, ...options })
+    await room.leave()
+    check(what, false, 'it was let in')
+  } catch (refused) {
+    check(what, true, String((refused as Error).message).slice(0, 60))
+  }
+}
+
+await refuse('no ticket, no seat', {})
+await refuse('a made-up ticket is refused', { ticket: 'not.a.ticket' })
+await refuse('an expired ticket is refused', { ticket: minted.expired })
+
+/*
+ * A ticket names one room. Presenting a good one at a different door is the
+ * failure that matters most here, because it is the one a signature check alone
+ * would never catch.
+ */
+await refuse('a ticket for another room opens nothing', {
+  ticket: minted.ticket,
+  room: `${EXPERIENCE}/somewhere-else`,
+})
+
+if (seated) {
+  await seated.leave()
+}
+
+await hub.stop()
+
+console.log()
+console.log(
+  failures === 0
+    ? '  The door only opens for what the venue signed.\n'
+    : `  ${failures} step(s) did not work.\n`,
+)
+
+process.exit(failures === 0 ? 0 : 1)

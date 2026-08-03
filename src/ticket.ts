@@ -102,6 +102,36 @@ async function keysFor(did: string, now: number): Promise<Map<string, CryptoKey>
 }
 
 /**
+ * One segment of a compact JWS, read as JSON.
+ *
+ * Anything at all can arrive at this door, so a segment that is not base64url
+ * or not JSON is an ordinary refusal rather than something to throw a parser
+ * error about. Letting one escape would report "unexpected token" to somebody
+ * whose actual problem is that they have no ticket.
+ */
+function readSegment(segment: string, called: string): unknown {
+  let decoded: string
+
+  try {
+    decoded = Buffer.from(segment, 'base64url').toString()
+  } catch {
+    throw new Error(`That ticket's ${called} is not base64url.`)
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(decoded)
+
+    if (parsed === null || typeof parsed !== 'object') {
+      throw new Error('not an object')
+    }
+
+    return parsed
+  } catch {
+    throw new Error(`That ticket's ${called} is not readable.`)
+  }
+}
+
+/**
  * Check a ticket, and say who it seats.
  *
  * @param expectedRoom the room actually being joined, which is not the same as
@@ -118,10 +148,7 @@ export async function verifyTicket(
     throw new Error('That is not a compact JWS.')
   }
 
-  const head = JSON.parse(Buffer.from(header, 'base64url').toString()) as {
-    alg?: string
-    kid?: string
-  }
+  const head = readSegment(header, 'header') as { alg?: string; kid?: string }
 
   /*
    * Pinned to what we are willing to check, never to what the document asks
@@ -155,7 +182,7 @@ export async function verifyTicket(
     throw new Error('That ticket does not verify against the key it names.')
   }
 
-  const claims = JSON.parse(Buffer.from(payload, 'base64url').toString()) as Record<string, unknown>
+  const claims = readSegment(payload, 'claims') as Record<string, unknown>
 
   if (typeof claims.exp !== 'number' || claims.exp * 1000 < now) {
     throw new Error('That ticket has expired.')
