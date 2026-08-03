@@ -83,6 +83,7 @@ command to remember.
 
 | | |
 | --- | --- |
+| [**Glossary**](https://github.com/StreetMesh/Protocol/blob/main/GLOSSARY.md) | Every term here in plain words — venue, ticket, attestation, domicile — and whether each one is ours or borrowed. Start here if any of the above was unfamiliar. |
 | [`Protocol`](https://github.com/StreetMesh/Protocol) | What StreetMesh is. Guides, decisions, conformance vectors. |
 | [`Protocol-PHP`](https://github.com/StreetMesh/Protocol-PHP) | The framework-free implementation. |
 | [`Protocol-Laravel`](https://github.com/StreetMesh/Protocol-Laravel) | The same, bound to Laravel — including minting the tickets this checks. |
