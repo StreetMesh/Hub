@@ -75,17 +75,44 @@ export abstract class VenueRoom<State extends OccupancyType = OccupancyType> ext
     const ticket = await verifyTicket(options.ticket, this.venueRoom)
 
     /*
-     * One seat, one occupant. Without this a second connection presenting the
-     * same ticket would sit down beside the first, and the two would disagree
-     * about the room from then on.
+     * One seat, one occupant — but the occupant is a person, not a connection.
+     *
+     * A second connection from the same person takes the chair over rather than
+     * being refused. Refusing was wrong in every case it actually came up: a
+     * tab that crashed, a laptop that slept, a browser that navigated without
+     * unloading the page. In all of them the old socket is still holding a seat
+     * nobody is sitting in, and the person it belongs to cannot get back to
+     * their own game until it times out.
+     *
+     * Two connections *are* still one occupant. The old one is shown the door
+     * here, so the two can never disagree about the room.
      */
-    for (const seated of this.seats.values()) {
-      if (seated.subject === ticket.subject) {
-        throw new Error('Somebody is already sitting there.')
-      }
-    }
+    this.replace(ticket.subject)
 
     return { ticket }
+  }
+
+  /**
+   * Show somebody's earlier connection the door, if they have one.
+   *
+   * Cleared here as well as in `onLeave`, rather than waiting for it: the new
+   * client is admitted immediately after this returns, and a seat still listed
+   * under the old session would be a room that briefly holds the same person
+   * twice.
+   */
+  private replace(subject: string): void {
+    for (const [sessionId, seated] of this.seats) {
+      if (seated.subject !== subject) {
+        continue
+      }
+
+      this.seats.delete(sessionId)
+      this.state.occupants.delete(sessionId)
+
+      // 4103: taken over from somewhere else. A code rather than a silent
+      // close, so the older screen can say so instead of looking broken.
+      this.clients.find((client) => client.sessionId === sessionId)?.leave(4103)
+    }
   }
 
   onJoin(client: Client, options: JoinOptions, auth: Seated): void {
