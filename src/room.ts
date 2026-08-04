@@ -11,6 +11,7 @@
  */
 
 import { Room, type Client } from '@colyseus/core'
+import { forget, remember } from './serve.ts'
 import { verifyTicket, type Ticket } from './ticket.ts'
 import { Occupancy, Occupant, type OccupancyType } from './presence.ts'
 
@@ -55,6 +56,17 @@ export abstract class VenueRoom<State extends OccupancyType = OccupancyType> ext
     }
 
     this.opened(options)
+
+    /*
+     * Findable by the name the venue knows it by. Colyseus keys rooms on an id
+     * it invented, and the venue only ever knew the name it put in the ticket —
+     * without this, a venue asking how a game ended has nothing to ask about.
+     */
+    remember(this, this.venueRoom)
+  }
+
+  onDispose(): void {
+    forget(this.venueRoom)
   }
 
   /**
@@ -128,6 +140,21 @@ export abstract class VenueRoom<State extends OccupancyType = OccupancyType> ext
     )
 
     this.seated(client, auth.ticket)
+  }
+
+  /**
+   * What this room will say happened, once it is over.
+   *
+   * Null while there is still a game on, and null forever in a room that has
+   * no notion of an ending. A venue asks for this to write somebody a record,
+   * so answering early would be the venue signing a result that had not
+   * happened yet.
+   *
+   * Deliberately plain data. The venue signs whatever comes back, so it must
+   * be something it can hand to a repository unchanged.
+   */
+  result(): Record<string, unknown> | null {
+    return null
   }
 
   onLeave(client: Client): void {

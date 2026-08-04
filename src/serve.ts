@@ -12,7 +12,7 @@
 
 import { Server, type Room } from '@colyseus/core'
 import { WebSocketTransport } from '@colyseus/ws-transport'
-import { createServer } from 'node:http'
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 
 /**
  * A room class, as something that can be constructed.
@@ -57,8 +57,71 @@ export function typeNameFor(nsid: string): string {
   return nsid.replaceAll('.', '_')
 }
 
+/**
+ * Every room currently open, by the venue's name for it.
+ *
+ * The hub holds this because Colyseus does not: its own registry is keyed on
+ * the room id it invented, and the only name the venue knows is the one it put
+ * in the ticket. Kept here rather than in room metadata, which Colyseus
+ * publishes in a listing — a table's occupants are nobody else's business.
+ *
+ * One process. A hub spread across several would need this somewhere shared,
+ * and would need to say so rather than quietly answer "no such room" for half
+ * of them.
+ */
+const open = new Map<string, Resultful>()
+
+/**
+ * Only what this file needs of a room, so that rooms may import from here
+ * without this having to import them back.
+ */
+type Resultful = { result(): Record<string, unknown> | null }
+
+export function remember(room: Resultful, name: string): void {
+  open.set(name, room)
+}
+
+export function forget(name: string): void {
+  open.delete(name)
+}
+
+/**
+ * How a game ends up in somebody's own records.
+ *
+ * The venue asks; the hub answers only for a room that is over. The venue signs
+ * what comes back, which is why this is the one thing here worth being careful
+ * about: it is the hub's only influence on what gets written into a person's
+ * repository, and it cannot sign anything itself.
+ *
+ * Answers nothing until there is a result, and lists nothing at all. You have
+ * to already know the name of the table to ask about it, and that name came
+ * from the venue.
+ */
+function answerResults(request: IncomingMessage, response: ServerResponse): void {
+  const url = new URL(request.url ?? '/', 'http://hub.invalid')
+
+  if (url.pathname !== '/result') {
+    response.writeHead(404).end()
+
+    return
+  }
+
+  const room = open.get(url.searchParams.get('room') ?? '')
+  const result = room?.result() ?? null
+
+  if (result === null) {
+    // No such table, or one still being played. Deliberately the same answer:
+    // whether a game exists is not a question this should help anybody explore.
+    response.writeHead(404, { 'Content-Type': 'application/json' }).end('{}')
+
+    return
+  }
+
+  response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(result))
+}
+
 export async function serve(experiences: Experience[], port: number): Promise<Hub> {
-  const http = createServer()
+  const http = createServer(answerResults)
 
   const server = new Server({
     transport: new WebSocketTransport({ server: http }),
