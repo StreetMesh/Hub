@@ -157,6 +157,19 @@ export abstract class VenueRoom<State extends OccupancyType = OccupancyType> ext
     return null
   }
 
+  /**
+   * Who is connected right now, and what they are sitting in.
+   *
+   * Not who has a seat — that is the venue's record and outlives a dropped
+   * connection on purpose. This is the room.
+   */
+  present(): Array<{ name: string; seat: string }> {
+    return [...this.seats.values()].map((ticket) => ({
+      name: ticket.name,
+      seat: ticket.seat,
+    }))
+  }
+
   onLeave(client: Client): void {
     const ticket = this.seats.get(client.sessionId)
 

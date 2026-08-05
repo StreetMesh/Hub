@@ -75,7 +75,10 @@ const open = new Map<string, Resultful>()
  * Only what this file needs of a room, so that rooms may import from here
  * without this having to import them back.
  */
-type Resultful = { result(): Record<string, unknown> | null }
+type Resultful = {
+  result(): Record<string, unknown> | null
+  present(): Array<{ name: string; seat: string }>
+}
 
 export function remember(room: Resultful, name: string): void {
   open.set(name, room)
@@ -100,6 +103,12 @@ export function forget(name: string): void {
 function answerResults(request: IncomingMessage, response: ServerResponse): void {
   const url = new URL(request.url ?? '/', 'http://hub.invalid')
 
+  if (url.pathname === '/present') {
+    answerPresence(url, response)
+
+    return
+  }
+
   if (url.pathname !== '/result') {
     response.writeHead(404).end()
 
@@ -118,6 +127,36 @@ function answerResults(request: IncomingMessage, response: ServerResponse): void
   }
 
   response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(result))
+}
+
+/**
+ * Who is actually at a table right now.
+ *
+ * The venue knows who sat down; only this knows who is still sitting there. A
+ * seat survives somebody closing the tab — it has to, or their opponent could
+ * take their chair while they reconnected — so a venue counting seats is
+ * counting a history rather than a room.
+ *
+ * Asked about named rooms and never listing them. The caller has the names
+ * already; they came from the venue's own records. A room nobody asks about is
+ * a room this will not mention, which is why there is no endpoint that returns
+ * everything — the prototype had one and it published every live table.
+ */
+function answerPresence(url: URL, response: ServerResponse): void {
+  const asked = url.searchParams.getAll('room')
+  const present: Record<string, Array<{ name: string; seat: string }>> = {}
+
+  for (const name of asked) {
+    // Absent rather than empty for a room that is not open, so "nobody is
+    // there" and "there is no room" stay different answers.
+    const room = open.get(name)
+
+    if (room) {
+      present[name] = room.present()
+    }
+  }
+
+  response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(present))
 }
 
 export async function serve(experiences: Experience[], port: number): Promise<Hub> {
