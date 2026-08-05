@@ -11,6 +11,7 @@
  */
 
 import { Room, type Client } from '@colyseus/core'
+import { announce } from './announce.ts'
 import { forget, remember } from './serve.ts'
 import { verifyTicket, type Ticket } from './ticket.ts'
 import { Occupancy, Occupant, type OccupancyType } from './presence.ts'
@@ -37,6 +38,15 @@ export abstract class VenueRoom<State extends OccupancyType = OccupancyType> ext
 
   /** The venue's name for this room, which every ticket must agree with. */
   protected venueRoom = ''
+
+  /**
+   * The venue that signed the ticket that opened this room.
+   *
+   * Kept so the room can call back without being configured with an address —
+   * it arrives with the authority that opened the room, which means a hub
+   * serving several venues cannot be talked into telling the wrong one.
+   */
+  private issuer = ''
 
   onCreate(options: JoinOptions): void {
     if (typeof options?.room !== 'string' || options.room === '') {
@@ -67,6 +77,33 @@ export abstract class VenueRoom<State extends OccupancyType = OccupancyType> ext
 
   onDispose(): void {
     forget(this.venueRoom)
+
+    /*
+     * The last word. A room is memory, and after this there is nobody left to
+     * ask — a game that ended once both players had closed their tabs would
+     * otherwise be a result nobody ever hears, and a table nobody is at would
+     * go on being counted until the venue's own cache gave up.
+     */
+    this.tell()
+  }
+
+  /**
+   * Tell the venue what this room looks like now.
+   *
+   * Called here whenever somebody arrives or leaves. An experience whose state
+   * changes in a way the venue needs to know about — a game ending, which
+   * nobody is leaving over — calls it too.
+   *
+   * Not awaited anywhere. The people in this room are playing a game and none
+   * of them are waiting on the venue hearing about it, so a venue that is slow
+   * or down must not hold anything up.
+   */
+  protected tell(): void {
+    void announce(this.issuer, process.env.SM_REALTIME_SECRET ?? '', {
+      room: this.venueRoom,
+      occupants: this.present(),
+      result: this.result(),
+    })
   }
 
   /**
@@ -129,6 +166,7 @@ export abstract class VenueRoom<State extends OccupancyType = OccupancyType> ext
 
   onJoin(client: Client, options: JoinOptions, auth: Seated): void {
     this.seats.set(client.sessionId, auth.ticket)
+    this.issuer ||= auth.ticket.issuer
 
     this.state.occupants.set(
       client.sessionId,
@@ -140,6 +178,8 @@ export abstract class VenueRoom<State extends OccupancyType = OccupancyType> ext
     )
 
     this.seated(client, auth.ticket)
+
+    this.tell()
   }
 
   /**
@@ -179,6 +219,8 @@ export abstract class VenueRoom<State extends OccupancyType = OccupancyType> ext
     if (ticket) {
       this.left(client, ticket)
     }
+
+    this.tell()
   }
 
   /** Who is here, as the venue vouched for them. */
