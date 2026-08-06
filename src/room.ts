@@ -12,7 +12,7 @@
 
 import { Room, type Client } from '@colyseus/core'
 import { announce } from './announce.ts'
-import { forget, remember } from './serve.ts'
+import { forget, remember } from './answers.ts'
 import { verifyTicket, type Ticket } from './ticket.ts'
 import { Occupancy, Occupant, type OccupancyType } from './presence.ts'
 
@@ -99,7 +99,7 @@ export abstract class VenueRoom<State extends OccupancyType = OccupancyType> ext
    * or down must not hold anything up.
    */
   protected tell(): void {
-    void announce(this.issuer, process.env.SM_REALTIME_SECRET ?? '', {
+    void announce(this.issuer, process.env.STREETMESH_REALTIME_SECRET ?? '', {
       room: this.venueRoom,
       occupants: this.present(),
       result: this.result(),

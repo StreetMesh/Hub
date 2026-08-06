@@ -17,7 +17,8 @@ import { Client } from 'colyseus.js'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
-import { serve, typeNameFor } from '../src/serve.ts'
+import { listen } from '@colyseus/tools'
+import { hub, typeNameFor } from '../src/mod.ts'
 import { VenueRoom } from '../src/room.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -50,7 +51,12 @@ function mintFor(room: string): { ticket: string; room: string } {
 /** A room with no rules at all, which is all the door needs to be tested. */
 class Empty extends VenueRoom {}
 
-const hub = await serve([{ name: EXPERIENCE, room: Empty }], PORT)
+/*
+ * Stood up exactly the way a deployed one is — the same `hub()` the venue's
+ * generated config calls. A door checked in a server assembled differently from
+ * the real one is a door nobody has checked.
+ */
+const server = await listen(hub([{ name: EXPERIENCE, room: Empty }]), PORT)
 
 const client = new Client(`ws://127.0.0.1:${PORT}`)
 
@@ -147,7 +153,12 @@ if (seated) {
   await seated.leave()
 }
 
-await hub.stop()
+/*
+ * Rooms are told before the socket goes, so clients see a room closing rather
+ * than a connection dropping. The two look identical to a browser and mean very
+ * different things to somebody mid-game.
+ */
+await server.gracefullyShutdown(false)
 
 console.log()
 console.log(

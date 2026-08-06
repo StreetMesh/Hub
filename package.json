@@ -16,10 +16,13 @@
   "dependencies": {
     "@colyseus/core": "^0.16.0",
     "@colyseus/schema": "^3.0.0",
+    "@colyseus/tools": "^0.16.20",
     "@colyseus/ws-transport": "^0.16.0",
-    "colyseus": "^0.16.0"
+    "colyseus": "^0.16.0",
+    "express": "^5.2.1"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
     "@types/node": "^22.10.0",
     "colyseus.js": "^0.16.22",
     "tsx": "^4.19.0",
